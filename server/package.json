@@ -1,0 +1,16 @@
+{
+  "name": "slumberpod-server",
+  "version": "1.0.0",
+  "description": "SlumberPod后端API服务",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node index.js",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.76.1",
+    "axios": "^1.13.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  }
+}
