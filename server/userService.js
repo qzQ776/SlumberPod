@@ -1,5 +1,5 @@
 // 用户管理服务
-import supabase from '../supabaseClient.js'
+import supabase from './supabaseClient.js'
 
 /**
  * 用户服务类 - 处理所有用户相关操作
