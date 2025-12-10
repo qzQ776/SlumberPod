@@ -76,8 +76,14 @@ class UserModel {
       
       Object.keys(updates).forEach(key => {
         if (key !== 'openid') {
+          // 确保没有undefined值传入数据库
+          let value = updates[key];
+          if (value === undefined) {
+            value = null;
+          }
+          
           fields.push(`${key} = ?`);
-          values.push(updates[key]);
+          values.push(value);
         }
       });
       

@@ -1,5 +1,6 @@
 const CommunityPost = require('./database/models/CommunityPost');
 const CommentModel = require('./database/models/Comment');
+const SearchHistory = require('./database/models/SearchHistory');
 
 /**
  * 社区服务层 - 处理帖子、评论、点赞等业务逻辑
@@ -358,9 +359,11 @@ class CommunityService {
       const result = await CommentModel.addComment(openid, targetType, parseInt(targetId), content, parentId);
       
       if (!result.success) {
+        console.error('社区服务 - 添加评论失败详情:', result.error);
         return {
           success: false,
-          message: result.error || '添加评论失败'
+          message: result.error || '添加评论失败',
+          error: result.error
         };
       }
       
@@ -579,6 +582,17 @@ class CommunityService {
           success: false,
           message: result.error || '搜索帖子失败'
         };
+      }
+      
+      // 如果用户已登录，记录搜索历史
+      if (options.openid) {
+        try {
+          const SearchHistory = require('./database/models/SearchHistory');
+          await SearchHistory.addSearchRecord(options.openid, keyword, 'post');
+        } catch (searchHistoryError) {
+          console.warn('记录搜索历史失败，但不影响搜索结果:', searchHistoryError);
+          // 搜索历史记录失败不影响主要搜索功能
+        }
       }
       
       return {

@@ -197,10 +197,9 @@ async function saveAudioUrlToMySQL(audioData) {
        (
          owner_openid, title, description, cover_url, audio_url, 
          duration_seconds, is_free, is_public, type, 
-         play_count, favorite_count, comment_count, 
          created_at, updated_at, is_user_creation
        ) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)`,
       [
         audioData.owner_openid || null, // 可选，用户openid
         audioData.title, // 必填
@@ -211,9 +210,6 @@ async function saveAudioUrlToMySQL(audioData) {
         audioData.is_free ?? 0, // 默认为0（不免费）
         audioData.is_public ?? 1, // 默认为1（公开）
         audioData.type ?? 'user_created', // 默认为用户创作
-        0, // play_count初始值0
-        0, // favorite_count初始值0
-        0, // comment_count初始值0
         audioData.is_user_creation ?? 1 // 默认为用户创作
       ]
     );

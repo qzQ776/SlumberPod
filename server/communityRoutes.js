@@ -4,7 +4,8 @@ const CommunityService = require('./communityService');
 
 // 认证中间件 - 使用微信JWT token验证
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'slumberpod_wechat_secret_key';
+// 直接使用正确的JWT密钥，避免环境变量加载问题
+const JWT_SECRET = 'slumberpod_jwt_secret_key_2024';
 
 function authenticateToken(req, res, next) {
   try {
@@ -91,6 +92,300 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ==================== 搜索和分类相关接口 ====================
+
+// 搜索帖子（必须放在动态路由参数之前）
+router.get('/search', async (req, res) => {
+  try {
+    const { 
+      q: keyword,
+      limit = 20, 
+      offset = 0,
+      status = 'published'
+    } = req.query;
+
+    if (!keyword) {
+      return res.status(400).json({
+        success: false,
+        message: '请输入搜索关键词'
+      });
+    }
+
+    // 修复参数解析bug
+    const parsedLimit = parseInt(limit) || 20;
+    const parsedOffset = parseInt(offset) || 0;
+
+    // 获取用户身份信息（如果已登录）
+    let openid = null;
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        openid = decoded.openid;
+      }
+    } catch (authError) {
+      // 身份验证失败不影响搜索功能，只是不记录搜索历史
+      console.log('用户未登录或token无效，搜索历史将不会被记录');
+    }
+
+    const result = await CommunityService.searchPosts(keyword, {
+      limit: parsedLimit,
+      offset: parsedOffset,
+      status,
+      openid: openid
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.data || [],
+      total: result.total || 0,
+      message: result.message
+    });
+
+  } catch (error) {
+    console.error('搜索帖子失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '搜索帖子失败',
+      error: error.message
+    });
+  }
+});
+
+// ==================== 搜索历史相关接口 ====================
+
+// 获取用户搜索历史记录
+router.get('/search/history', async (req, res) => {
+  try {
+    // 验证用户身份
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: '请先登录'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const openid = decoded.openid;
+
+    const { 
+      limit = 10,
+      targetType = 'post'
+    } = req.query;
+
+    const SearchHistory = require('./database/models/SearchHistory');
+    const result = await SearchHistory.getUserSearchHistory(openid, targetType, limit);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.error
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.data || [],
+      message: result.message
+    });
+
+  } catch (error) {
+    console.error('获取搜索历史失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取搜索历史失败',
+      error: error.message
+    });
+  }
+});
+
+// 删除单条搜索记录
+router.delete('/search/history/:recordId', async (req, res) => {
+  try {
+    // 验证用户身份
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: '请先登录'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const openid = decoded.openid;
+
+    const { recordId } = req.params;
+
+    const SearchHistory = require('./database/models/SearchHistory');
+    const result = await SearchHistory.deleteSearchRecord(openid, recordId);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.error
+      });
+    }
+
+    res.json({
+      success: true,
+      message: result.message
+    });
+
+  } catch (error) {
+    console.error('删除搜索记录失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '删除搜索记录失败',
+      error: error.message
+    });
+  }
+});
+
+// 清空用户搜索历史
+router.delete('/search/history', async (req, res) => {
+  try {
+    // 验证用户身份
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: '请先登录'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const openid = decoded.openid;
+
+    const { targetType = null } = req.query;
+
+    const SearchHistory = require('./database/models/SearchHistory');
+    const result = await SearchHistory.clearUserSearchHistory(openid, targetType);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.error
+      });
+    }
+
+    res.json({
+      success: true,
+      message: result.message
+    });
+
+  } catch (error) {
+    console.error('清空搜索历史失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '清空搜索历史失败',
+      error: error.message
+    });
+  }
+});
+
+// 获取热门搜索关键词
+router.get('/search/hot', async (req, res) => {
+  try {
+    const { 
+      limit = 10,
+      days = 7
+    } = req.query;
+
+    const SearchHistory = require('./database/models/SearchHistory');
+    const result = await SearchHistory.getHotSearchKeywords(limit, days);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.error
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.data || [],
+      message: result.message
+    });
+
+  } catch (error) {
+    console.error('获取热门搜索失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取热门搜索失败',
+      error: error.message
+    });
+  }
+});
+
+// ==================== 热门帖子接口（必须在动态路由参数之前） ====================
+
+// 获取热门帖子（按点赞数排序）
+router.get('/hot', async (req, res) => {
+  try {
+    const { 
+      limit = 20, 
+      offset = 0,
+      category_id,
+      status = 'published'
+    } = req.query;
+
+    // 修复参数解析bug
+    const parsedLimit = parseInt(limit) || 20;
+    const parsedOffset = parseInt(offset) || 0;
+    const parsedCategoryId = category_id ? parseInt(category_id) : null;
+
+    const result = await CommunityService.getPosts({
+      limit: parsedLimit,
+      offset: parsedOffset,
+      category_id: parsedCategoryId,
+      status,
+      orderBy: 'like_count',
+      order: 'DESC'
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message,
+        error: result.error
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.data || [],
+      total: result.total || 0,
+      message: result.message
+    });
+
+  } catch (error) {
+    console.error('获取热门帖子失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取热门帖子失败',
+      error: error.message
+    });
+  }
+});
+
+
+
 // 获取帖子详情
 router.get('/:id', async (req, res) => {
   try {
@@ -171,8 +466,9 @@ router.post('/', authenticateToken, async (req, res) => {
       console.error('社区路由 - 错误详情:', result.error);
       return res.status(400).json({
         success: false,
-        message: result.message,
-        details: result.error || null
+        message: result.message || '创建帖子失败',
+        error: result.error || null,
+        details: result.details || null
       });
     }
 
@@ -189,7 +485,8 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: '创建帖子失败',
-      error: error.message
+      error: error.message,
+      details: error.stack
     });
   }
 });
@@ -546,9 +843,9 @@ router.post('/comments/:commentId/like', authenticateToken, async (req, res) => 
 // ==================== 音频评论相关接口 ====================
 
 // 获取音频评论列表
-router.get('/audio/:audioId/comments', async (req, res) => {
+router.get('/audio/:audio_id/comments', async (req, res) => {
   try {
-    const { audioId } = req.params;
+    const { audio_id } = req.params;
     const { 
       limit = 20, 
       offset = 0,
@@ -592,7 +889,7 @@ router.get('/audio/:audioId/comments', async (req, res) => {
 });
 
 // 添加音频评论（需要认证）
-router.post('/audio/:audioId/comments', authenticateToken, async (req, res) => {
+router.post('/audio/:audio_id/comments', authenticateToken, async (req, res) => {
   try {
     const openid = req.openid;
     if (!openid) {
@@ -705,108 +1002,6 @@ router.get('/comments/:commentId/replies', async (req, res) => {
     res.status(500).json({
       success: false,
       message: '获取评论回复列表失败',
-      error: error.message
-    });
-  }
-});
-
-// ==================== 搜索和分类相关接口 ====================
-
-// 搜索帖子
-router.get('/search', async (req, res) => {
-  try {
-    const { 
-      q: keyword,
-      limit = 20, 
-      offset = 0,
-      status = 'published'
-    } = req.query;
-
-    if (!keyword) {
-      return res.status(400).json({
-        success: false,
-        message: '请输入搜索关键词'
-      });
-    }
-
-    // 修复参数解析bug
-    const parsedLimit = parseInt(limit) || 20;
-    const parsedOffset = parseInt(offset) || 0;
-
-    const result = await CommunityService.searchPosts(keyword, {
-      limit: parsedLimit,
-      offset: parsedOffset,
-      status
-    });
-
-    if (!result.success) {
-      return res.status(400).json({
-        success: false,
-        message: result.message
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result.data || [],
-      total: result.total || 0,
-      message: result.message
-    });
-
-  } catch (error) {
-    console.error('搜索帖子失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '搜索帖子失败',
-      error: error.message
-    });
-  }
-});
-
-// 获取热门帖子（按点赞数排序）
-router.get('/hot', async (req, res) => {
-  try {
-    const { 
-      limit = 20, 
-      offset = 0,
-      category_id,
-      status = 'published'
-    } = req.query;
-
-    // 修复参数解析bug
-    const parsedLimit = parseInt(limit) || 20;
-    const parsedOffset = parseInt(offset) || 0;
-    const parsedCategoryId = category_id ? parseInt(category_id) : null;
-
-    const result = await CommunityService.getPosts({
-      limit: parsedLimit,
-      offset: parsedOffset,
-      category_id: parsedCategoryId,
-      status,
-      orderBy: 'like_count',
-      order: 'DESC'
-    });
-
-    if (!result.success) {
-      return res.status(400).json({
-        success: false,
-        message: result.message,
-        error: result.error
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result.data || [],
-      total: result.total || 0,
-      message: result.message
-    });
-
-  } catch (error) {
-    console.error('获取热门帖子失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取热门帖子失败',
       error: error.message
     });
   }

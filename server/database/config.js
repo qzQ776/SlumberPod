@@ -36,12 +36,13 @@ const dbConfig = {
   database: process.env.MYSQL_DATABASE, // 强制从环境变量获取，无默认值
   connectionLimit: parseInt(process.env.MYSQL_CONNECTION_LIMIT, 10) || 10, // 最大连接数
   queueLimit: parseInt(process.env.MYSQL_QUEUE_LIMIT, 10) || 50, // 等待队列上限（避免无限制堆积）
-  acquireTimeout: 60000, // 获取连接的超时时间（ms）
-  timeout: 60000, // 连接空闲超时时间（ms）
   connectTimeout: 10000, // 初始连接超时时间（ms）
   waitForConnections: true, // 连接池满时是否等待（而非直接报错）
   charset: 'utf8mb4', // 支持emoji等特殊字符
-  timezone: '+08:00' // 时区配置（与业务时区保持一致）
+  timezone: 'local', // 使用本地时区，避免参数绑定问题
+  supportBigNumbers: true,
+  bigNumberStrings: true,
+  dateStrings: true // 避免日期类型转换问题
 };
 
 // 创建MySQL连接池（连接池是数据库操作的核心入口）
@@ -75,14 +76,17 @@ async function testConnection() {
  */
 async function query(sql, params = []) {
   try {
-    // 确保参数格式正确，特别是数字参数
-    const processedParams = params.map(param => {
-      if (typeof param === 'string' && !isNaN(param) && param.trim() !== '') {
-        // 将可以转换为数字的字符串转换为数字
-        return parseInt(param, 10);
-      }
-      return param;
-    });
+    // 添加SQL指纹用于调试
+    const sqlFingerprint = sql.substring(0, 50).replace(/\s+/g, ' ');
+    const placeholderCount = (sql.match(/\?/g) || []).length;
+    
+    console.log('🔍 SQL执行指纹:', sqlFingerprint, '...');
+    console.log('参数数量:', params.length, '占位符数量:', placeholderCount);
+    
+    // 检查参数和占位符数量是否匹配
+    if (params.length !== placeholderCount) {
+      throw new Error(`参数数量不匹配: 需要${placeholderCount}个参数，但提供了${params.length}个`);
+    }
     
     // 特殊处理SHOW TABLES语句 - MySQL2不支持SHOW TABLES的参数绑定
     if (sql.trim().toUpperCase().startsWith('SHOW TABLES')) {
@@ -91,14 +95,15 @@ async function query(sql, params = []) {
       return { success: true, data: rows, fields };
     }
     
-    // 对于复杂的JOIN查询，使用更安全的参数处理方式
-    const connection = await pool.getConnection();
-    try {
-      const [rows, fields] = await connection.execute(sql, processedParams);
+    // 对于无参数的查询，直接使用query方法
+    if (params.length === 0) {
+      const [rows, fields] = await pool.query(sql);
       return { success: true, data: rows, fields };
-    } finally {
-      connection.release();
     }
+    
+    // 对于有参数的查询，使用execute方法
+    const [rows, fields] = await pool.execute(sql, params);
+    return { success: true, data: rows, fields };
   } catch (error) {
     console.error('❌ SQL查询执行失败:', error.message);
     console.error('关联SQL:', sql);
@@ -110,6 +115,17 @@ async function query(sql, params = []) {
       console.error('  - SQL语句中的占位符数量:', (sql.match(/\?/g) || []).length);
       console.error('  - 提供的参数数量:', params.length);
       console.error('  - 请检查参数类型和数量是否匹配');
+      
+      // 尝试使用query方法作为备选方案
+      try {
+        console.log('⚠️ execute方法失败，尝试query方法:', error.message);
+        const [rows, fields] = await pool.query(sql, params);
+        console.log('✅ query方法执行成功');
+        return { success: true, data: rows, fields };
+      } catch (fallbackError) {
+        console.error('❌ query方法也失败:', fallbackError.message);
+        return { success: false, error: fallbackError.message };
+      }
     }
     
     return { success: false, error: error.message };

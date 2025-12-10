@@ -154,7 +154,6 @@
 | is_user_creation | tinyint(1)    | 0                                             | 否       | 是否用户创作（1 = 是，0 = 否，与`type`字段联动，便于筛选）   |
 | play_count       | int(11)       | 0                                             | 否       | 播放量（用户播放一次 + 1，自动统计）                         |
 | favorite_count   | int(11)       | 0                                             | 否       | 收藏量（用户收藏一次 + 1，取消收藏 - 1，自动统计）           |
-| comment_count    | int(11)       | 0                                             | 否       | 评论量（用户评论一次 + 1，删除评论 - 1，自动统计）           |
 | created_at       | datetime      | CURRENT_TIMESTAMP                             | 否       | 创建时间（系统音频为录入时间，用户创作音频为上传时间）       |
 | updated_at       | datetime      | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 否       | 更新时间（音频信息修改时自动刷新）                           |
 

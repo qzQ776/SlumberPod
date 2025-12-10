@@ -1,5 +1,6 @@
 const express = require('express')
 const cors = require('cors')
+const path = require('path')
 require('dotenv').config()
 
 const app = express()
@@ -25,7 +26,15 @@ async function initializeDatabase() {
 }
 
 // 中间件
-app.use(cors())
+app.use(cors({
+  origin: function (origin, callback) {
+    // 允许所有来源，包括微信开发者工具
+    callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}))
 app.use(express.json())
 
 // 导入标准JWT认证中间件
@@ -48,10 +57,16 @@ console.log('注册路由: /api/favorites');
 const favoriteRoutes = require('./favoriteRoutes');
 app.use('/api/favorites', authenticateToken, favoriteRoutes);
 
+console.log('注册路由: /api/audio');
+const audioUploadRoutes = require('./audioUploadRoutes');
+app.use('/api/audio', authenticateToken, audioUploadRoutes);
+
+
+
 // 注册新的路由文件
 console.log('注册路由: /api/audios');
 const audioRoutes = require('./audioRoutes');
-app.use('/api/audios', audioRoutes);
+app.use('/api/audios', optionalAuth, audioRoutes);
 
 console.log('注册路由: /api/community');
 const communityRoutes = require('./communityRoutes');
@@ -59,7 +74,7 @@ app.use('/api/community', communityRoutes);
 
 console.log('注册路由: /api/users');
 const userRoutes = require('./userRoutes');
-app.use('/api/users', userRoutes);
+app.use('/api/users', authenticateToken, userRoutes);
 
 console.log('注册路由: /api/sleep');
 const sleepRoutes = require('./sleepRoutes');
@@ -69,9 +84,7 @@ console.log('注册路由: /api/creations');
 const creationRoutes = require('./creationRoutes');
 app.use('/api/creations', authenticateToken, creationRoutes);
 
-console.log('注册路由: /api/comments');
-const commentRoutes = require('./commentRoutes');
-app.use('/api/comments', authenticateToken, commentRoutes);
+
 
 // 注册新的业务逻辑路由
 console.log('注册路由: /api/playlists');
@@ -94,17 +107,60 @@ console.log('注册路由: /api/alarms/reminder');
 const alarmReminderRoutes = require('./services/alarmReminderRoutes');
 app.use('/api/alarms/reminder', authenticateToken, alarmReminderRoutes);
 
-console.log('注册路由: /api/search');
-const searchRoutes = require('./searchRoutes');
-app.use('/api/search', authenticateToken, searchRoutes);
 
+
+// 注册统一的音频管理接口（替换所有重复的音频相关路由）
+console.log('注册路由: /api/audio-manager');
+const audioManagerRoutes = require('./audioManager');
+app.use('/api/audio-manager', authenticateToken, audioManagerRoutes);
+
+// 保留原有的分类路由（作为公共接口）
 console.log('注册路由: /api/categories');
 const categoryRoutes = require('./categoryRoutes');
 app.use('/api/categories', categoryRoutes);
 
-console.log('注册路由: /api/audio');
-const audioUploadRoutes = require('./audioUploadRoutes');
-app.use('/api/audio', authenticateToken, audioUploadRoutes);
+// 注册播放控制路由
+console.log('注册路由: /api/playback');
+const playbackControlRoutes = require('./playbackControlRoutes');
+app.use('/api/playback', authenticateToken, playbackControlRoutes);
+
+// 注册小屋模块路由
+console.log('注册路由: /api/mailbox');
+const mailboxRoutes = require('./mailboxRoutes');
+app.use('/api/mailbox', authenticateToken, mailboxRoutes);
+
+console.log('注册路由: /api/stories');
+const storiesRoutes = require('./storiesRoutes');
+app.use('/api/stories', storiesRoutes);
+
+console.log('注册路由: /api/study-room');
+const studyRoomRoutes = require('./studyRoomRoutes');
+app.use('/api/study-room', authenticateToken, studyRoomRoutes);
+
+
+
+// 注册搜索路由
+console.log('注册路由: /api/search');
+const searchRoutes = require('./searchRoutes');
+app.use('/api/search', optionalAuth, searchRoutes);
+
+// 白噪音组合功能已集成到 /api/audios 接口中
+// 不再需要单独的白噪音路由文件
+
+// 注册音频图标批量上传管理接口
+console.log('注册路由: /api/admin/audio-icons');
+const audioIconUploadRoutes = require('./audioIconUploadRoutes');
+app.use('/api/admin/audio-icons', audioIconUploadRoutes);
+
+
+
+// 静态文件服务（用于上传的文件）
+console.log('注册静态文件服务: /uploads');
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// 静态文件服务（用于HTML页面）
+console.log('注册根目录静态文件服务');
+app.use(express.static(path.join(__dirname, '..')));
 
 // 打印所有已注册路由
 app._router.stack.forEach((layer) => {
@@ -128,14 +184,20 @@ async function startServer() {
     // 初始化数据库
     await initializeDatabase();
     
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`📍 服务地址: http://localhost:${PORT}`)
+      console.log(`🌐 外部访问: http://192.168.1.128:${PORT}`)
       console.log(`📊 健康检查: http://localhost:${PORT}/api/health`)
       console.log(`🔐 认证接口: http://localhost:${PORT}/api/auth`)
       console.log(`👤 微信登录: http://localhost:${PORT}/api/wechat/login`)
       console.log(`🎵 音频接口: http://localhost:${PORT}/api/audios`)
       console.log(`🎵 音频上传: http://localhost:${PORT}/api/audio/upload`)
+      console.log(`📁 文件上传: http://localhost:${PORT}/api/common/upload`)
       console.log(`💬 社区接口: http://localhost:${PORT}/api/community`)
+      console.log(`👤 用户资料: http://localhost:${PORT}/api/users/profile`)
+      console.log(`📮 晚安邮箱: http://localhost:${PORT}/api/mailbox`)
+      console.log(`📖 睡眠故事: http://localhost:${PORT}/api/stories`)
+      console.log(`🎓 学习专注: http://localhost:${PORT}/api/study`)
       console.log(`😴 睡眠接口: http://localhost:${PORT}/api/sleep/records`)
       console.log(`❤️ 收藏接口: http://localhost:${PORT}/api/favorites`)
       console.log(`📖 播放历史: http://localhost:${PORT}/api/play-history`)

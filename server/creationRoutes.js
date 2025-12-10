@@ -1,8 +1,12 @@
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 
+// 配置multer用于处理表单数据（无文件上传）
+const upload = multer();
+
 // 用户发布创作音频
-router.post('/', async (req, res) => {
+router.post('/', upload.none(), async (req, res) => {
   try {
     const openid = req.openid;
     
@@ -30,6 +34,12 @@ router.post('/', async (req, res) => {
       console.log('处理后请求体:', requestBody);
     }
     
+    // 如果请求体为空，尝试从查询参数中获取
+    if (Object.keys(requestBody).length === 0 && Object.keys(req.query).length > 0) {
+      requestBody = { ...req.query };
+      console.log('从查询参数获取请求体:', requestBody);
+    }
+    
     const { 
       title, 
       description, 
@@ -54,7 +64,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: '标题是必填项',
-        details: '请提供title或name字段'
+        details: '请先上传音频文件，然后提供标题信息。音频上传成功后，请确保传递title或name字段。'
       });
     }
     
@@ -63,7 +73,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: '音频URL是必填项，请确保音频已成功上传',
-        details: '请提供audio_url、audioUrl或url字段'
+        details: '请先通过 /api/audio/upload 接口上传音频文件，然后使用返回的音频URL调用本接口。请提供audio_url、audioUrl或url字段。'
       });
     }
 
@@ -111,14 +121,6 @@ router.post('/', async (req, res) => {
 
     // 创建音频
     const result = await AudioModel.createAudio(audioData);
-    
-    if (!result.success) {
-      console.error('创建音频记录失败:', result.error);
-      return res.status(500).json({
-        success: false,
-        message: '创作发布失败，请重试'
-      });
-    }
     
     if (!result.success) {
       console.error('创建音频记录失败:', result.error);
@@ -269,7 +271,7 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    const result = await AudioModel.updateAudio(parseInt(id), {
+    const result = await AudioModel.updateAudio(parseInt(id), openid, {
       title,
       description,
       category_id

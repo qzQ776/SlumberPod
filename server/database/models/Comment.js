@@ -15,18 +15,18 @@ class CommentModel {
       
       const sql = `
         SELECT 
-          c.comment_id,
+          c.id as comment_id,
           c.target_type,
           c.target_id,
-          c.author_openid as openid,
+          c.openid,
           c.parent_id,
           c.content,
           c.like_count,
           c.created_at,
           u.nickname,
           u.avatar_url
-        FROM comments c
-        LEFT JOIN users u ON c.author_openid = u.openid
+        FROM post_comments c
+        LEFT JOIN users u ON c.openid = u.openid
         WHERE c.target_type = ? AND c.target_id = ?
         ORDER BY c.${orderBy} ${order}
         LIMIT ? OFFSET ?
@@ -41,7 +41,7 @@ class CommentModel {
       // 获取总数
       const countSql = `
         SELECT COUNT(*) as total
-        FROM comments 
+        FROM post_comments 
         WHERE target_type = ? AND target_id = ?
       `;
       
@@ -74,35 +74,41 @@ class CommentModel {
       }
       
       const sql = `
-        INSERT INTO comments (target_type, target_id, author_openid, parent_id, content)
+        INSERT INTO post_comments (target_type, target_id, openid, parent_id, content)
         VALUES (?, ?, ?, ?, ?)
       `;
       
+      console.log('评论模型 - 执行SQL:', sql);
+      console.log('评论模型 - 参数:', [targetType, targetId, openid, parentId, content]);
+      
       const result = await query(sql, [targetType, targetId, openid, parentId, content]);
       
-      if (!result.success || !result.insertId) {
-        return { success: false, error: '添加评论失败' };
+      console.log('评论模型 - SQL执行结果:', result);
+      
+      if (!result.success || !result.data?.insertId) {
+        console.error('评论模型 - 插入失败:', result.error);
+        return { success: false, error: result.error || '添加评论失败' };
       }
       
       // 获取新创建的评论
       const getSql = `
         SELECT 
-          c.comment_id,
+          c.id as comment_id,
           c.target_type,
           c.target_id,
-          c.author_openid as openid,
+          c.openid,
           c.parent_id,
           c.content,
           c.like_count,
           c.created_at,
           u.nickname,
           u.avatar_url
-        FROM comments c
-        LEFT JOIN users u ON c.author_openid = u.openid
-        WHERE c.comment_id = ?
+        FROM post_comments c
+        LEFT JOIN users u ON c.openid = u.openid
+        WHERE c.id = ?
       `;
       
-      const commentResult = await query(getSql, [result.insertId]);
+      const commentResult = await query(getSql, [result.data.insertId]);
       
       if (!commentResult.success || !commentResult.data || commentResult.data.length === 0) {
         return { success: false, error: '获取评论详情失败' };
@@ -128,9 +134,9 @@ class CommentModel {
     try {
       // 检查评论是否属于当前用户
       const checkSql = `
-        SELECT comment_id, target_type, target_id 
-        FROM comments 
-        WHERE comment_id = ? AND author_openid = ?
+        SELECT id as comment_id, target_type, target_id 
+        FROM post_comments 
+        WHERE id = ? AND openid = ?
       `;
       
       const checkResult = await query(checkSql, [commentId, openid]);
@@ -143,8 +149,8 @@ class CommentModel {
       
       // 删除评论
       const deleteSql = `
-        DELETE FROM comments 
-        WHERE comment_id = ?
+        DELETE FROM post_comments 
+        WHERE id = ?
       `;
       
       const result = await query(deleteSql, [commentId]);
@@ -169,19 +175,19 @@ class CommentModel {
     try {
       const sql = `
         SELECT 
-          c.comment_id,
+          c.id as comment_id,
           c.target_type,
           c.target_id,
-          c.author_openid as openid,
+          c.openid,
           c.parent_id,
           c.content,
           c.like_count,
           c.created_at,
           u.nickname,
           u.avatar_url
-        FROM comments c
-        LEFT JOIN users u ON c.author_openid = u.openid
-        WHERE c.comment_id = ?
+        FROM post_comments c
+        LEFT JOIN users u ON c.openid = u.openid
+        WHERE c.id = ?
       `;
       
       const result = await query(sql, [commentId]);
@@ -212,18 +218,18 @@ class CommentModel {
       
       const sql = `
         SELECT 
-          c.comment_id,
+          c.id as comment_id,
           c.target_type,
           c.target_id,
-          c.author_openid as openid,
+          c.openid,
           c.parent_id,
           c.content,
           c.like_count,
           c.created_at,
           u.nickname,
           u.avatar_url
-        FROM comments c
-        LEFT JOIN users u ON c.author_openid = u.openid
+        FROM post_comments c
+        LEFT JOIN users u ON c.openid = u.openid
         WHERE c.parent_id = ?
         ORDER BY c.created_at ASC
         LIMIT ? OFFSET ?
@@ -238,7 +244,7 @@ class CommentModel {
       // 获取总数
       const countSql = `
         SELECT COUNT(*) as total
-        FROM comments 
+        FROM post_comments 
         WHERE parent_id = ?
       `;
       
@@ -264,10 +270,10 @@ class CommentModel {
       
       let sql = `
         SELECT 
-          c.comment_id,
+          c.id as comment_id,
           c.target_type,
           c.target_id,
-          c.author_openid as openid,
+          c.openid,
           c.parent_id,
           c.content,
           c.like_count,
@@ -276,11 +282,11 @@ class CommentModel {
           u.avatar_url,
           p.title as post_title,
           a.title as audio_title
-        FROM comments c
-        LEFT JOIN users u ON c.author_openid = u.openid
+        FROM post_comments c
+        LEFT JOIN users u ON c.openid = u.openid
         LEFT JOIN posts p ON c.target_type = 'post' AND c.target_id = p.post_id
         LEFT JOIN audios a ON c.target_type = 'audio' AND c.target_id = a.audio_id
-        WHERE c.author_openid = ?
+        WHERE c.openid = ?
       `;
       
       const params = [openid];
@@ -302,8 +308,8 @@ class CommentModel {
       // 获取总数
       let countSql = `
         SELECT COUNT(*) as total
-        FROM comments 
-        WHERE author_openid = ?
+        FROM post_comments 
+        WHERE openid = ?
       `;
       
       const countParams = [openid];
@@ -331,15 +337,30 @@ class CommentModel {
    */
   static async toggleLike(openid, commentId) {
     try {
+      console.log('评论点赞 - 开始执行:', { openid, commentId });
+      
+      // 验证评论是否存在
+      const commentCheck = await this.getCommentById(commentId);
+      if (!commentCheck.success || !commentCheck.data) {
+        return { success: false, error: '评论不存在' };
+      }
+      
       // 检查是否已经点赞
       const checkSql = `
         SELECT id FROM comment_likes 
         WHERE openid = ? AND comment_id = ?
       `;
       
+      console.log('评论点赞 - 检查是否已点赞:', checkSql, [openid, commentId]);
       const checkResult = await query(checkSql, [openid, commentId]);
       
-      if (checkResult.success && checkResult.data && checkResult.data.length > 0) {
+      if (!checkResult.success) {
+        console.error('评论点赞 - 检查点赞状态失败:', checkResult.error);
+        return { success: false, error: '检查点赞状态失败' };
+      }
+      
+      if (checkResult.data && checkResult.data.length > 0) {
+        console.log('评论点赞 - 已点赞，执行取消点赞');
         // 取消点赞
         const deleteSql = `
           DELETE FROM comment_likes 
@@ -352,13 +373,18 @@ class CommentModel {
           // 更新评论点赞数
           await this.updateLikeCount(commentId, -1);
           
+          console.log('评论点赞 - 取消点赞成功');
           return {
             success: true,
             liked: false,
             message: '取消点赞成功'
           };
+        } else {
+          console.error('评论点赞 - 取消点赞失败:', deleteResult.error);
+          return { success: false, error: '取消点赞失败' };
         }
       } else {
+        console.log('评论点赞 - 未点赞，执行点赞');
         // 点赞
         const insertSql = `
           INSERT INTO comment_likes (openid, comment_id)
@@ -371,19 +397,19 @@ class CommentModel {
           // 更新评论点赞数
           await this.updateLikeCount(commentId, 1);
           
+          console.log('评论点赞 - 点赞成功');
           return {
             success: true,
             liked: true,
             message: '点赞成功'
           };
+        } else {
+          console.error('评论点赞 - 点赞失败:', insertResult.error);
+          return { success: false, error: '点赞失败' };
         }
       }
-      
-      return {
-        success: false,
-        error: '操作失败'
-      };
     } catch (error) {
+      console.error('评论点赞 - 操作异常:', error);
       return { success: false, error: error.message };
     }
   }
@@ -394,9 +420,9 @@ class CommentModel {
   static async updateLikeCount(commentId, increment) {
     try {
       const sql = `
-        UPDATE comments 
+        UPDATE post_comments 
         SET like_count = like_count + ?
-        WHERE comment_id = ?
+        WHERE id = ?
       `;
       
       await query(sql, [increment, commentId]);
@@ -419,13 +445,8 @@ class CommentModel {
         
         await query(sql, [increment, targetId]);
       } else if (targetType === 'audio') {
-        const sql = `
-          UPDATE audios 
-          SET comment_count = comment_count + ?
-          WHERE audio_id = ?
-        `;
-        
-        await query(sql, [increment, targetId]);
+        // 音频表已删除comment_count字段，无需更新
+        console.log('音频表已删除comment_count字段，跳过更新');
       }
     } catch (error) {
       console.error('更新评论数失败:', error);

@@ -38,6 +38,14 @@ router.get('/', async (req, res) => {
     const openid = req.openid;
     const { limit = 10 } = req.query;
     
+    // 如果没有openid（匿名用户），返回空结果而不是错误
+    if (!openid) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+    
     const SearchHistory = require('./database/models/SearchHistory');
     const result = await SearchHistory.getUserSearchHistory(openid, parseInt(limit));
     
